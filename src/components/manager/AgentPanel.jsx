@@ -1,0 +1,1 @@
+export default function AgentPanel() { return <div>Manager AgentPanel Component</div>; }

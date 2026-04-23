@@ -1,0 +1,1 @@
+export default function VoiceBar() { return <div>Manager VoiceBar Component</div>; }

@@ -1,0 +1,1 @@
+export default function TopBar() { return <div>Manager TopBar Component</div>; }

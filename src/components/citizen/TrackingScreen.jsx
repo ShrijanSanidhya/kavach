@@ -1,0 +1,1 @@
+export default function TrackingScreen() { return <div>Citizen TrackingScreen Component</div>; }

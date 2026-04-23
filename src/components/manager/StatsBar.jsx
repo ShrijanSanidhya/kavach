@@ -1,0 +1,1 @@
+export default function StatsBar() { return <div>Manager StatsBar Component</div>; }

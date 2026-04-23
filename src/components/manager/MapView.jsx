@@ -1,0 +1,1 @@
+export default function MapView() { return <div>Manager MapView Component</div>; }

@@ -1,0 +1,1 @@
+export default function FleetStatus() { return <div>Manager FleetStatus Component</div>; }

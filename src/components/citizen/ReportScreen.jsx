@@ -1,0 +1,1 @@
+export default function ReportScreen() { return <div>Citizen ReportScreen Component</div>; }

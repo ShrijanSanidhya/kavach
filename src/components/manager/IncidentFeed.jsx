@@ -1,0 +1,1 @@
+export default function IncidentFeed() { return <div>Manager IncidentFeed Component</div>; }
