@@ -1,26 +1,36 @@
-# Kavach - Smart City Dispatch
+# KAVACH — Smart City Dispatch
 
-Kavach is an intelligent emergency response and dispatch system designed for Indian cities.
-
-## Features
-- 🚨 Real-time Emergency Triage
-- 🚑 Automated Resource Dispatch
-- 🗣️ Multi-lingual Support (Hindi, Hinglish, English)
-- 🤖 LLM-powered Response Coordination
+KAVACH is an intelligent, real-time emergency response and dispatch system designed specifically for Indian cities. It utilizes the power of LLMs to analyze incoming emergency requests (in Hindi, Hinglish, or English), automatically triage the severity, intelligently assign nearest available resources (Ambulances, Fire Trucks, Police), and coordinate the dispatch flow to minimize response time.
 
 ## Tech Stack
-- React, Vite, Tailwind CSS
-- Firebase, Google Gemini 1.5 Flash
+- **Frontend**: React, Vite, Tailwind CSS, Lucide Icons
+- **AI/Backend**: Google Gemini 1.5 Flash
+- **APIs**: Web Speech API (for voice input)
+- **Routing**: React Router DOM
 
-## Installation
-```bash
-npm install
-```
+## How to Run Locally
 
-## Configuration
-Create a `.env` file based on `.env.example` and add your Gemini API key.
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-## Usage
-```bash
-npm run dev
-```
+2. **Configure Environment**
+   Create a `.env` file in the root of the project and add your Gemini API Key:
+   ```env
+   VITE_GEMINI_API_KEY=your_actual_gemini_api_key_here
+   ```
+
+3. **Start the Development Server**
+   ```bash
+   npm run dev
+   ```
+
+## Application URLs
+
+Once the development server is running, the application exposes two distinct views for the demo:
+
+- **Citizen Mobile App**: [http://localhost:5173/](http://localhost:5173/)
+- **Manager Dashboard**: [http://localhost:5173/manager](http://localhost:5173/manager)
+
+You can easily switch between these views using the small navigation buttons built into the corners of the application.

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Mic, MicOff, Send, Loader2, MapPin, Ambulance, Navigation } from "lucide-react";
 import { startListening } from "../utils/speechRecognition";
 import { triageAgent, dispatchAgent, coordinatorAgent } from "../utils/gemini";
 import { mockResources } from "../data/mockResources";
 
 export default function CitizenApp() {
+  const navigate = useNavigate();
   const [screen, setScreen] = useState("report"); // report, processing, tracking
   
   // Report Screen State
@@ -103,19 +105,19 @@ export default function CitizenApp() {
     <div className="min-h-screen bg-[#05080F] text-white flex flex-col items-center w-full relative overflow-hidden font-sans">
       
       {/* HEADER */}
-      <div className="w-full max-w-md p-6 text-center z-10">
+      <div className="w-full max-w-[420px] mx-auto p-6 text-center z-10">
         <h1 className="text-3xl font-black tracking-widest text-cyan-400">KAVACH</h1>
         <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Emergency Response System</p>
       </div>
 
       {/* ===================== SCREEN 1: REPORT ===================== */}
       {screen === "report" && (
-        <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-6 space-y-8 z-10">
+        <div className="flex-1 w-full max-w-[420px] mx-auto flex flex-col items-center justify-center p-6 space-y-8 z-10">
           
           <div className="flex flex-col items-center">
             <button
               onClick={toggleListening}
-              className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${
+              className={`w-[100px] h-[100px] rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${
                 isListening 
                   ? "bg-red-500 animate-pulse shadow-red-500/50 scale-110" 
                   : "bg-red-600/20 hover:bg-red-600/40 border border-red-500/30"
@@ -151,13 +153,13 @@ export default function CitizenApp() {
             <div className="flex gap-2 justify-center">
               <button 
                 onClick={() => setLanguage("hi-IN")}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${language === "hi-IN" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
+                className={`flex-1 min-h-[48px] rounded-full text-sm font-medium transition-colors ${language === "hi-IN" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
               >
                 हिंदी
               </button>
               <button 
                 onClick={() => setLanguage("en-US")}
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${language === "en-US" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
+                className={`flex-1 min-h-[48px] rounded-full text-sm font-medium transition-colors ${language === "en-US" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
               >
                 English
               </button>
@@ -166,7 +168,7 @@ export default function CitizenApp() {
 
           <button 
             onClick={handleSubmit}
-            className="w-full py-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl font-bold text-lg tracking-wider transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2"
+            className="w-full min-h-[48px] bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl font-bold text-lg tracking-wider transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2"
           >
             REPORT EMERGENCY <Send className="w-5 h-5" />
           </button>
@@ -175,7 +177,7 @@ export default function CitizenApp() {
 
       {/* ===================== SCREEN 2: PROCESSING ===================== */}
       {screen === "processing" && (
-        <div className="flex-1 w-full max-w-md p-6 flex flex-col justify-center space-y-4 z-10">
+        <div className="flex-1 w-full max-w-[420px] mx-auto p-6 flex flex-col justify-center space-y-4 z-10">
           
           {/* Triage Agent */}
           <div className={`p-4 rounded-xl border transition-all duration-500 ${activeAgent === "triage" ? "bg-red-500/10 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]" : "bg-white/5 border-white/10 opacity-70"}`}>
@@ -230,7 +232,7 @@ export default function CitizenApp() {
 
       {/* ===================== SCREEN 3: TRACKING ===================== */}
       {screen === "tracking" && trackingData && (
-        <div className="flex-1 w-full max-w-md flex flex-col p-6 z-10">
+        <div className="flex-1 w-full max-w-[420px] mx-auto flex flex-col p-6 z-10">
           
           <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-4 text-center mb-8 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
             <h2 className="text-emerald-400 font-bold tracking-widest text-sm mb-2">HELP IS ON THE WAY</h2>
@@ -288,13 +290,21 @@ export default function CitizenApp() {
                 setDispatchThought("");
                 setCoordThought("");
               }}
-              className="w-full py-4 border border-white/20 hover:bg-white/5 rounded-xl font-bold tracking-wider transition-colors"
+              className="w-full min-h-[48px] border border-white/20 hover:bg-white/5 rounded-xl font-bold tracking-wider transition-colors"
             >
               REPORT ANOTHER EMERGENCY
             </button>
           </div>
         </div>
       )}
+
+      {/* FLOATING MANAGER BUTTON */}
+      <button 
+        onClick={() => navigate('/manager')}
+        className="absolute bottom-4 right-4 bg-white/10 px-4 py-2 rounded-lg text-xs font-bold text-gray-400 hover:text-white backdrop-blur-md border border-white/20 transition-colors z-50 min-h-[48px] flex items-center justify-center"
+      >
+        Manager View &rarr;
+      </button>
 
     </div>
   );
