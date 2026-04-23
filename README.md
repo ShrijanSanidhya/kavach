@@ -11,3 +11,8 @@ Kavach is an intelligent emergency response and dispatch system designed for Ind
 ## Tech Stack
 - React, Vite, Tailwind CSS
 - Firebase, Google Gemini 1.5 Flash
+
+## Installation
+```bash
+npm install
+```
