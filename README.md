@@ -19,3 +19,8 @@ npm install
 
 ## Configuration
 Create a `.env` file based on `.env.example` and add your Gemini API key.
+
+## Usage
+```bash
+npm run dev
+```
