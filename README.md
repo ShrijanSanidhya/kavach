@@ -7,3 +7,6 @@ Kavach is an intelligent emergency response and dispatch system designed for Ind
 - 🚑 Automated Resource Dispatch
 - 🗣️ Multi-lingual Support (Hindi, Hinglish, English)
 - 🤖 LLM-powered Response Coordination
+
+## Tech Stack
+- React, Vite, Tailwind CSS
