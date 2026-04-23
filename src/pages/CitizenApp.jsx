@@ -271,7 +271,7 @@ export default function CitizenApp() {
             {/* Moving Resource Dot */}
             <div 
               className="absolute w-4 h-4 bg-cyan-400 rounded-full shadow-[0_0_15px_#22d3ee] transition-all duration-500"
-              style={{ left: \`\${dotPos.x}%\`, top: \`\${dotPos.y}%\` }}
+              style={{ left: `${dotPos.x}%`, top: `${dotPos.y}%` }}
             ></div>
           </div>
 

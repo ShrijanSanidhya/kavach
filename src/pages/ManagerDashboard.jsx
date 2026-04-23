@@ -13,7 +13,7 @@ const getPos = (lat, lng) => {
   const minLng = 77.1800, maxLng = 77.2500;
   const x = ((lng - minLng) / (maxLng - minLng)) * 100;
   const y = ((maxLat - lat) / (maxLat - minLat)) * 100;
-  return { left: \`\${x}%\`, top: \`\${y}%\` };
+  return { left: `${x}%`, top: `${y}%` };
 };
 
 export default function ManagerDashboard() {
