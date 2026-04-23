@@ -16,3 +16,6 @@ Kavach is an intelligent emergency response and dispatch system designed for Ind
 ```bash
 npm install
 ```
+
+## Configuration
+Create a `.env` file based on `.env.example` and add your Gemini API key.
