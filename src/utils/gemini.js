@@ -1,43 +1,40 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "YOUR_API_KEY_HERE";
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
 export async function triageAgent(rawText, onThought) {
-  const prompt = `You are an emergency triage agent for a smart city dispatch system in India.
-Analyze this emergency call and respond ONLY with valid JSON, nothing else.
-The call may be in Hindi, Hinglish, or English.
-
-Call text: "${rawText}"
-
-Respond with this exact JSON structure:
-{
-  "severity": <number 1-5, 5 being most critical>,
-  "locationHint": "<extracted location if mentioned>",
-  "resourcesNeeded": ["ambulance" and/or "fire_truck" and/or "police"],
-  "isDuplicate": false,
-  "summary": "<one line summary in English>",
-  "thinking": "<your reasoning process, 2-3 sentences>"
-}`;
-
-  const result = await model.generateContentStream(prompt);
-  let fullText = "";
-  for await (const chunk of result.stream) {
-    const chunkText = chunk.text();
-    fullText += chunkText;
-    if (onThought) onThought(fullText);
-  }
   try {
-    const clean = fullText.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
-  } catch {
-    return { severity: 3, resourcesNeeded: ["ambulance"], isDuplicate: false, summary: rawText, thinking: fullText };
+    const response = await fetch("http://localhost:5000/api/triage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: rawText })
+    });
+    
+    if (!response.ok) throw new Error("Backend error");
+    const data = await response.json();
+    
+    // Simulate "thought" for the UI since it expects a stream or text
+    if (onThought) onThought(data.thinking || "Analyzing emergency...");
+    
+    return data;
+  } catch (err) {
+    console.error("Triage error:", err);
+    if (onThought) onThought('Analyzing emergency call...');
+    return { severity: 3, resourcesNeeded: ['ambulance'], 
+             isDuplicate: false, summary: rawText, 
+             thinking: 'Emergency detected.' };
   }
 }
 
 export async function dispatchAgent(incident, availableResources, onThought) {
-  const prompt = `You are an emergency dispatch agent for Delhi NCR.
+  try {
+    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are an emergency dispatch agent for Delhi NCR.
 Choose the best available resources for this incident and respond ONLY with valid JSON.
 
 Incident: ${JSON.stringify(incident)}
@@ -49,25 +46,39 @@ Respond with this exact JSON structure:
   "estimatedETA": <number in minutes>,
   "route": "<brief route description>",
   "thinking": "<your dispatch reasoning, 2-3 sentences>"
-}`;
-
-  const result = await model.generateContentStream(prompt);
-  let fullText = "";
-  for await (const chunk of result.stream) {
-    const chunkText = chunk.text();
-    fullText += chunkText;
-    if (onThought) onThought(fullText);
-  }
-  try {
-    const clean = fullText.replace(/```json|```/g, "").trim();
+}`
+            }]
+          }]
+        })
+      }
+    );
+    
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.candidates[0].content.parts[0].text;
+    if (onThought) onThought(text);
+    const clean = text.replace(/```json|```/g, '').trim();
     return JSON.parse(clean);
-  } catch {
-    return { assignedResources: [], estimatedETA: 5, route: "Direct route", thinking: fullText };
+  } catch (err) {
+    console.error('Dispatch error:', err);
+    if (onThought) onThought('Finding nearest resources...');
+    return { assignedResources: [], estimatedETA: 5, route: "Direct route", thinking: "Dispatching resources." };
   }
 }
 
 export async function coordinatorAgent(incident, dispatch, onThought) {
-  const prompt = `You are the coordinator agent confirming emergency dispatch in Delhi.
+  try {
+    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+    
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are the coordinator agent confirming emergency dispatch in Delhi.
 Generate confirmation details and respond ONLY with valid JSON.
 
 Incident: ${JSON.stringify(incident)}
@@ -79,19 +90,22 @@ Respond with this exact JSON structure:
   "statusUpdate": "<status update for the operator>",
   "zoneAlert": "<any zone capacity warnings>",
   "thinking": "<your coordination thoughts, 2-3 sentences>"
-}`;
-
-  const result = await model.generateContentStream(prompt);
-  let fullText = "";
-  for await (const chunk of result.stream) {
-    const chunkText = chunk.text();
-    fullText += chunkText;
-    if (onThought) onThought(fullText);
-  }
-  try {
-    const clean = fullText.replace(/```json|```/g, "").trim();
+}`
+            }]
+          }]
+        })
+      }
+    );
+    
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.candidates[0].content.parts[0].text;
+    if (onThought) onThought(text);
+    const clean = text.replace(/```json|```/g, '').trim();
     return JSON.parse(clean);
-  } catch {
-    return { smsText: "Emergency services dispatched.", statusUpdate: "Confirmed", zoneAlert: "", thinking: fullText };
+  } catch (err) {
+    console.error('Coordinator error:', err);
+    if (onThought) onThought('Confirming routes...');
+    return { smsText: "Emergency services dispatched.", statusUpdate: "Confirmed", zoneAlert: "", thinking: "Coordination complete." };
   }
 }

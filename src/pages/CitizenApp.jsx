@@ -4,6 +4,7 @@ import { Mic, Send } from "lucide-react";
 import { startListening } from "../utils/speechRecognition";
 import { triageAgent, dispatchAgent, coordinatorAgent } from "../utils/gemini";
 import { mockResources } from "../data/mockResources";
+import { incidentStore } from "../utils/store";
 import KavachLogo from "../components/KavachLogo";
 
 export default function CitizenApp() {
@@ -60,35 +61,40 @@ export default function CitizenApp() {
 
     setScreen("processing");
     
-    // STEP 1: Triage
+    // Triage
     setActiveAgent("triage");
     setTriageThought("");
-    const triageResult = await triageAgent(text, (thought) => {
-      setTriageThought(thought);
-    });
+    const triageResult = await triageAgent(text, (t) => setTriageThought(t));
     
-    // STEP 2: Dispatch
+    // Dispatch
     setActiveAgent("dispatch");
     setDispatchThought("");
     const available = {
       ambulances: mockResources.ambulances.filter(r => r.status === "available"),
       fireTrucks: mockResources.fireTrucks.filter(r => r.status === "available")
     };
-    const dispatchResult = await dispatchAgent(triageResult, available, (thought) => {
-      setDispatchThought(thought);
-    });
+    const dispatchResult = await dispatchAgent(
+      triageResult, available, (t) => setDispatchThought(t)
+    );
 
-    // STEP 3: Coordinator
+    // Coordinator
     setActiveAgent("coordinator");
     setCoordThought("");
-    const coordResult = await coordinatorAgent(triageResult, dispatchResult, (thought) => {
-      setCoordThought(thought);
+    const coordResult = await coordinatorAgent(
+      triageResult, dispatchResult, (t) => setCoordThought(t)
+    );
+
+    incidentStore.addIncident({
+      id: `INC-${Date.now()}`,
+      timestamp: new Date().toLocaleTimeString(),
+      rawText: text,
+      severity: triageResult?.severity || 3,
+      status: 'pending',
+      location: { name: triageResult?.locationHint || 'Unknown' }
     });
 
-    // Done
-    setActiveAgent("done");
     setTrackingData({ triageResult, dispatchResult, coordResult });
-    setTimeout(() => setScreen("tracking"), 1000);
+    setTimeout(() => setScreen("tracking"), 1500);
   };
 
   const handleSubmit = () => {

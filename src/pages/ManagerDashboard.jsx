@@ -6,6 +6,7 @@ import { mockResources } from "../data/mockResources";
 import { chaosScenarios } from "../data/mockScenarios";
 import { triageAgent, dispatchAgent, coordinatorAgent } from "../utils/gemini";
 import { startListening } from "../utils/speechRecognition";
+import { incidentStore } from "../utils/store";
 import KavachLogo from "../components/KavachLogo";
 
 // Map coordinates normalization helper
@@ -35,10 +36,28 @@ export default function ManagerDashboard() {
   const [coordStatus, setCoordStatus] = useState("IDLE");
   const [coordThought, setCoordThought] = useState("Systems nominal.");
 
-  // Clock tick
+  // Clock tick & Store subscription
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
-    return () => clearInterval(timer);
+    const unsub = incidentStore.subscribe((newIncidents) => {
+      setIncidents(prev => {
+        const toAdd = newIncidents.filter(inc => !prev.some(p => p.id === inc.id));
+        // Add random lat/lng for map display if missing
+        const processed = toAdd.map(inc => ({
+          ...inc,
+          location: {
+            ...inc.location,
+            lat: inc.location?.lat || (28.6300 + (Math.random() * 0.02 - 0.01)),
+            lng: inc.location?.lng || (77.2150 + (Math.random() * 0.02 - 0.01))
+          }
+        }));
+        return [...processed, ...prev];
+      });
+    });
+    return () => {
+      clearInterval(timer);
+      unsub();
+    };
   }, []);
 
   const processIncident = async (query) => {
@@ -50,8 +69,8 @@ export default function ManagerDashboard() {
       timestamp: new Date().toLocaleTimeString(),
       rawText: query,
       language: "en",
-      location: { lat: 28.6300 + (Math.random() * 0.02 - 0.01), lng: 77.2150 + (Math.random() * 0.02 - 0.01), name: "Unknown" },
-      severity: null, // Don't hardcode, wait for triageAgent
+      location: { lat: 28.6300 + (Math.random() * 0.02 - 0.01), lng: 77.2150 + (Math.random() * 0.02 - 0.01), name: "Delhi NCR" },
+      severity: 3,
       status: "pending",
       resourcesNeeded: [],
       assignedResources: [],
@@ -64,50 +83,38 @@ export default function ManagerDashboard() {
     setTriageStatus("ANALYZING");
     setTriageThought("");
     const triageResult = await triageAgent(query, (text) => setTriageThought(text));
-    
-    newIncident = { ...newIncident, ...triageResult, severity: triageResult.severity || 3 };
-    setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-    setTriageStatus("IDLE");
 
     // 3. Dispatch
     setDispatchStatus("ROUTING");
     setDispatchThought("");
-    setResources(currentResources => {
-      const avail = {
-        ambulances: currentResources.ambulances.filter(r => r.status === "available"),
-        fireTrucks: currentResources.fireTrucks.filter(r => r.status === "available"),
-        police: currentResources.police.filter(r => r.status === "available")
-      };
-      
-      dispatchAgent(newIncident, avail, (text) => setDispatchThought(text)).then(dispatchResult => {
-        newIncident.assignedResources = dispatchResult.assignedResources || [];
-        setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-        
-        setResources(prevRes => {
-          const updated = JSON.parse(JSON.stringify(prevRes));
-          const toAssign = dispatchResult.assignedResources || [];
-          for (const resId of toAssign) {
-            ["ambulances", "fireTrucks", "police"].forEach(cat => {
-              const r = updated[cat].find(x => x.id === resId);
-              if (r) { r.status = "deployed"; r.assignedTo = incidentId; }
-            });
-          }
-          return updated;
-        });
-        
-        setDispatchStatus("IDLE");
+    const avail = {
+      ambulances: resources.ambulances.filter(r => r.status === "available"),
+      fireTrucks: resources.fireTrucks.filter(r => r.status === "available")
+    };
+    const dispatchResult = await dispatchAgent(triageResult, avail, (text) => setDispatchThought(text));
 
-        // 4. Coordinator
-        setCoordStatus("CONFIRMED");
-        setCoordThought("");
-        coordinatorAgent(newIncident, dispatchResult, (text) => setCoordThought(text)).then(() => {
-          newIncident.status = "active";
-          setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-          setCoordStatus("IDLE");
+    // 4. Coordinator
+    setCoordStatus("CONFIRMED");
+    setCoordThought("");
+    await coordinatorAgent(triageResult, dispatchResult, (text) => setCoordThought(text));
+
+    setIncidents(prev => prev.map(inc => inc.id === incidentId ? { ...inc, severity: triageResult.severity, status: 'active', assignedResources: dispatchResult.assignedResources || [] } : inc));
+    
+    setResources(prevRes => {
+      const updated = JSON.parse(JSON.stringify(prevRes));
+      const toAssign = dispatchResult.assignedResources || [];
+      for (const resId of toAssign) {
+        ["ambulances", "fireTrucks", "police"].forEach(cat => {
+          const r = updated[cat].find(x => x.id === resId);
+          if (r) { r.status = "deployed"; r.assignedTo = incidentId; }
         });
-      });
-      return currentResources;
+      }
+      return updated;
     });
+
+    setTriageStatus("IDLE");
+    setDispatchStatus("IDLE");
+    setCoordStatus("IDLE");
   };
 
   const handleInputSubmit = (e) => {
@@ -199,7 +206,7 @@ export default function ManagerDashboard() {
         </svg>
 
         {incidents.map((inc) => {
-          if (!inc.location) return null;
+          if (!inc.location || inc.location.lat === undefined) return null;
           const pos = getPos(inc.location.lat, inc.location.lng);
           return (
             <div key={inc.id} className="absolute z-20 flex flex-col items-center" style={{ left: pos.left, top: pos.top, transform: 'translate(-50%, -50%)' }}>
