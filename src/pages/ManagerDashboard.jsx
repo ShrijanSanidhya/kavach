@@ -334,56 +334,58 @@ export default function ManagerDashboard() {
          </div>
       </div>
 
-      {/* BOTTOM BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 p-[10px_20px_14px]" style={{ background: "linear-gradient(0deg, #020B18F5, transparent)" }}>
-        
-        {/* Stats Row */}
-        <div className="flex justify-center gap-[8px] mb-[8px]">
-          <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
-             <div className="text-[16px] font-[900] text-[#FF2D55]">{incidents.length}</div>
-             <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Incidents</div>
-          </div>
-          <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
-             <div className="text-[16px] font-[900] text-[#FFB300]">{deployedVehicles.length}</div>
-             <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Deployed</div>
-          </div>
-          <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
-             <div className="text-[16px] font-[900] text-[#00C8FF]">3.5</div>
-             <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Avg ETA</div>
-          </div>
-          <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
-             <div className="text-[16px] font-[900] text-[#00E676]">0</div>
-             <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Duplicates</div>
-          </div>
-        </div>
-
-        {/* Input Row */}
-        <div className="flex items-center gap-[12px] max-w-[700px] mx-auto w-full">
-          <button 
+      {/* BOTTOM BAR — single line: [mic + input] [4 stat cards] [CHAOS] */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-[12px] p-[10px_20px]"
+        style={{ background: "linear-gradient(0deg, #020B18F5, transparent)" }}
+      >
+        {/* LEFT — mic + input */}
+        <div className="flex items-center gap-[8px] flex-1 min-w-0">
+          <button
             onClick={toggleMic}
-            className="w-[44px] h-[44px] rounded-full bg-[#FF2D55] flex items-center justify-center flex-shrink-0 transition-all"
+            className="w-[38px] h-[38px] rounded-full bg-[#FF2D55] flex items-center justify-center flex-shrink-0 transition-all"
             style={{ boxShadow: isListening ? "0 0 20px #FF2D5580" : "0 0 10px #FF2D5540" }}
           >
-             <Mic className={`w-5 h-5 text-white ${isListening ? 'animate-[pulse_1s_infinite]' : ''}`} />
+            <Mic className={`w-4 h-4 text-white ${isListening ? 'animate-[pulse_1s_infinite]' : ''}`} />
           </button>
-          
-          <input 
-            type="text" 
-            className="flex-1 min-w-0 glass-card !p-[0_16px] h-[44px] text-[#E8F4FD] placeholder-[#2A4A6B] font-mono text-[13px] outline-none focus:border-[#00C8FF]"
+          <input
+            type="text"
+            className="flex-1 min-w-0 glass-card !p-[0_14px] h-[38px] rounded-[20px] text-[#E8F4FD] placeholder-[#2A4A6B] font-mono text-[12px] outline-none focus:border-[#00C8FF]"
             placeholder="Type scenario or use mic..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleInputSubmit}
           />
-
-          <button 
-            onClick={handleChaosMode}
-            disabled={isChaosMode}
-            className="flex-shrink-0 min-w-[100px] whitespace-nowrap bg-[rgba(26,0,16,0.88)] border border-[#FF2D55] text-[#FF2D55] p-[10px_20px] h-[44px] rounded-[12px] font-[900] text-[12px] tracking-[1px] flex items-center justify-center gap-[8px] hover:bg-[rgba(255,45,85,0.1)] transition-colors"
-          >
-             <AlertTriangle className="w-4 h-4" /> CHAOS
-          </button>
         </div>
+
+        {/* CENTER — 4 stat cards */}
+        <div className="flex items-center gap-[6px] flex-shrink-0">
+          <div className="glass-card !p-[6px_12px] text-center rounded-[8px]">
+            <div className="text-[16px] font-[900] text-[#FF2D55] leading-none">{incidents.length}</div>
+            <div className="text-[7px] font-[700] text-[#7B9BB5] uppercase mt-[2px]">Incidents</div>
+          </div>
+          <div className="glass-card !p-[6px_12px] text-center rounded-[8px]">
+            <div className="text-[16px] font-[900] text-[#FFB300] leading-none">{deployedVehicles.length}</div>
+            <div className="text-[7px] font-[700] text-[#7B9BB5] uppercase mt-[2px]">Deployed</div>
+          </div>
+          <div className="glass-card !p-[6px_12px] text-center rounded-[8px]">
+            <div className="text-[16px] font-[900] text-[#00C8FF] leading-none">3.5</div>
+            <div className="text-[7px] font-[700] text-[#7B9BB5] uppercase mt-[2px]">Avg ETA</div>
+          </div>
+          <div className="glass-card !p-[6px_12px] text-center rounded-[8px]">
+            <div className="text-[16px] font-[900] text-[#00E676] leading-none">0</div>
+            <div className="text-[7px] font-[700] text-[#7B9BB5] uppercase mt-[2px]">Dupes</div>
+          </div>
+        </div>
+
+        {/* RIGHT — CHAOS button */}
+        <button
+          onClick={handleChaosMode}
+          disabled={isChaosMode}
+          className="flex-shrink-0 whitespace-nowrap bg-[rgba(26,0,16,0.88)] border border-[#FF2D55] text-[#FF2D55] p-[8px_16px] h-[38px] rounded-[12px] font-[900] text-[12px] tracking-[1px] flex items-center justify-center gap-[6px] hover:bg-[rgba(255,45,85,0.1)] transition-colors"
+        >
+          <AlertTriangle className="w-4 h-4" /> CHAOS
+        </button>
       </div>
 
     </div>
