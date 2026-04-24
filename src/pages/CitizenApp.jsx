@@ -119,15 +119,15 @@ export default function CitizenApp() {
       
       {/* ===================== SCREEN 1: REPORT ===================== */}
       {screen === "report" && (
-        <div className="w-full max-w-[420px] mx-auto flex flex-col items-center justify-center p-[40px_20px] gap-[20px] z-10">
+        <div className="w-full max-w-[420px] mx-auto flex flex-col items-center justify-center p-[60px_20px] gap-[24px] z-10">
           
-          <div className="text-center">
+          <div className="text-center mb-[32px]">
             <KavachLogo size={28} subtitle="EMERGENCY RESPONSE SYSTEM" />
             <p className="text-[#7B9BB5] text-[13px] mt-2">Koi bhi emergency. Bas ek tap.</p>
           </div>
           
           <div className="flex flex-col items-center w-full relative">
-            <div className="relative flex items-center justify-center mb-[20px] w-[150px] h-[150px]">
+            <div className="relative flex items-center justify-center mt-[16px] mb-[32px] w-[150px] h-[150px]">
               {/* Mic Button Background Pulses */}
               <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-0 left-0 w-full h-full rounded-full border border-[#FF2D55] animate-[pulse-ring_1.5s_infinite]"></div>
@@ -147,8 +147,8 @@ export default function CitizenApp() {
               </button>
             </div>
             
-            <h2 className="text-[18px] font-[800] text-[#E8F4FD] tracking-[1px] text-center">TAP & SPEAK YOUR EMERGENCY</h2>
-            <p className="text-[#7B9BB5] text-[13px] text-center mt-1">Hindi ya English mein boliye</p>
+            <h2 className="text-[18px] font-[800] text-[#E8F4FD] tracking-[1px] text-center mt-[24px]">TAP & SPEAK YOUR EMERGENCY</h2>
+            <p className="text-[#7B9BB5] text-[13px] text-center mt-[8px] mb-[32px]">Hindi ya English mein boliye</p>
 
             {isListening && liveTranscript && (
               <div className="text-[#00C8FF] italic text-center mt-[10px] text-[14px] max-w-full px-4">
@@ -157,21 +157,21 @@ export default function CitizenApp() {
             )}
           </div>
 
-          <div className="w-full flex items-center gap-4">
+          <div className="w-full flex items-center gap-4 mt-[8px] mb-[24px]">
             <div className="flex-1 h-px bg-[#2A4A6B]"></div>
             <span className="text-[12px] font-[800] text-[#2A4A6B]">OR</span>
             <div className="flex-1 h-px bg-[#2A4A6B]"></div>
           </div>
 
-          <div className="w-full space-y-[10px]">
+          <div className="w-full">
             <textarea
-              className="w-full glass-card text-[#E8F4FD] text-[14px] placeholder-[#2A4A6B] focus:outline-none focus:border-[#00C8FF] focus:shadow-[0_0_20px_#00C8FF33] resize-none h-[80px]"
+              className="w-full glass-card text-[#E8F4FD] text-[14px] placeholder-[#2A4A6B] focus:outline-none focus:border-[#00C8FF] focus:shadow-[0_0_20px_#00C8FF33] resize-none h-[80px] mb-[16px]"
               placeholder="Type your emergency here..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
             
-            <div className="flex gap-[10px] justify-center">
+            <div className="flex gap-[10px] justify-center mb-[20px]">
               <button 
                 onClick={() => setLanguage("hi-IN")}
                 className={`flex-1 h-[40px] rounded-full text-[14px] font-[500] transition-colors ${language === "hi-IN" ? "bg-[#00C8FF20] border border-[#00C8FF] text-[#00C8FF]" : "bg-transparent border border-[rgba(0,200,255,0.12)] text-[#7B9BB5]"}`}
@@ -189,7 +189,7 @@ export default function CitizenApp() {
 
           <button 
             onClick={handleSubmit}
-            className="w-full h-[54px] rounded-[12px] font-[800] text-[16px] text-white tracking-[1px] flex justify-center items-center gap-[10px] hover:brightness-110 transition-all"
+            className="w-full h-[54px] rounded-[12px] font-[800] text-[16px] text-white tracking-[1px] flex justify-center items-center gap-[10px] hover:brightness-110 transition-all mt-[8px]"
             style={{ background: "linear-gradient(135deg, #FF2D55, #CC0033)", boxShadow: "0 4px 24px #FF2D5540" }}
           >
             REPORT EMERGENCY
