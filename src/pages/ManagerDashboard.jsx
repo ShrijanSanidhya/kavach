@@ -28,21 +28,18 @@ export default function ManagerDashboard() {
   const recognitionRef = useRef(null);
 
   // Agent States
-  const [agents, setAgents] = useState({
-    triage: { status: "IDLE", thought: "Monitoring incoming channels..." },
-    dispatch: { status: "IDLE", thought: "Awaiting incident assignments..." },
-    coordinator: { status: "IDLE", thought: "Systems nominal." }
-  });
+  const [triageStatus, setTriageStatus] = useState("IDLE");
+  const [triageThought, setTriageThought] = useState("Monitoring incoming channels...");
+  const [dispatchStatus, setDispatchStatus] = useState("IDLE");
+  const [dispatchThought, setDispatchThought] = useState("Awaiting incident assignments...");
+  const [coordStatus, setCoordStatus] = useState("IDLE");
+  const [coordThought, setCoordThought] = useState("Systems nominal.");
 
   // Clock tick
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const updateAgent = (agentId, data) => {
-    setAgents(prev => ({ ...prev, [agentId]: { ...prev[agentId], ...data } }));
-  };
 
   const processIncident = async (query) => {
     const incidentId = "INC-" + Math.floor(100 + Math.random() * 900);
@@ -54,7 +51,7 @@ export default function ManagerDashboard() {
       rawText: query,
       language: "en",
       location: { lat: 28.6300 + (Math.random() * 0.02 - 0.01), lng: 77.2150 + (Math.random() * 0.02 - 0.01), name: "Unknown" },
-      severity: 3,
+      severity: null, // Don't hardcode, wait for triageAgent
       status: "pending",
       resourcesNeeded: [],
       assignedResources: [],
@@ -64,46 +61,53 @@ export default function ManagerDashboard() {
     setIncidents(prev => [newIncident, ...prev]);
 
     // 2. Triage
-    updateAgent("triage", { status: "ANALYZING", thought: "" });
-    const triageResult = await triageAgent(query, (text) => updateAgent("triage", { thought: text }));
+    setTriageStatus("ANALYZING");
+    setTriageThought("");
+    const triageResult = await triageAgent(query, (text) => setTriageThought(text));
     
-    newIncident = { ...newIncident, ...triageResult };
+    newIncident = { ...newIncident, ...triageResult, severity: triageResult.severity || 3 };
     setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-    updateAgent("triage", { status: "IDLE" });
+    setTriageStatus("IDLE");
 
     // 3. Dispatch
-    updateAgent("dispatch", { status: "ROUTING", thought: "" });
-    const avail = {
-      ambulances: resources.ambulances.filter(r => r.status === "available"),
-      fireTrucks: resources.fireTrucks.filter(r => r.status === "available"),
-      police: resources.police.filter(r => r.status === "available")
-    };
-    
-    const dispatchResult = await dispatchAgent(newIncident, avail, (text) => updateAgent("dispatch", { thought: text }));
-    newIncident.assignedResources = dispatchResult.assignedResources || [];
-    setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-    
-    setResources(prev => {
-      const updated = JSON.parse(JSON.stringify(prev));
-      const toAssign = dispatchResult.assignedResources || [];
-      for (const resId of toAssign) {
-        ["ambulances", "fireTrucks", "police"].forEach(cat => {
-          const r = updated[cat].find(x => x.id === resId);
-          if (r) { r.status = "deployed"; r.assignedTo = incidentId; }
+    setDispatchStatus("ROUTING");
+    setDispatchThought("");
+    setResources(currentResources => {
+      const avail = {
+        ambulances: currentResources.ambulances.filter(r => r.status === "available"),
+        fireTrucks: currentResources.fireTrucks.filter(r => r.status === "available"),
+        police: currentResources.police.filter(r => r.status === "available")
+      };
+      
+      dispatchAgent(newIncident, avail, (text) => setDispatchThought(text)).then(dispatchResult => {
+        newIncident.assignedResources = dispatchResult.assignedResources || [];
+        setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
+        
+        setResources(prevRes => {
+          const updated = JSON.parse(JSON.stringify(prevRes));
+          const toAssign = dispatchResult.assignedResources || [];
+          for (const resId of toAssign) {
+            ["ambulances", "fireTrucks", "police"].forEach(cat => {
+              const r = updated[cat].find(x => x.id === resId);
+              if (r) { r.status = "deployed"; r.assignedTo = incidentId; }
+            });
+          }
+          return updated;
         });
-      }
-      return updated;
-    });
-    
-    updateAgent("dispatch", { status: "IDLE" });
+        
+        setDispatchStatus("IDLE");
 
-    // 4. Coordinator
-    updateAgent("coordinator", { status: "CONFIRMED", thought: "" });
-    await coordinatorAgent(newIncident, dispatchResult, (text) => updateAgent("coordinator", { thought: text }));
-    
-    newIncident.status = "active";
-    setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
-    updateAgent("coordinator", { status: "IDLE" });
+        // 4. Coordinator
+        setCoordStatus("CONFIRMED");
+        setCoordThought("");
+        coordinatorAgent(newIncident, dispatchResult, (text) => setCoordThought(text)).then(() => {
+          newIncident.status = "active";
+          setIncidents(prev => prev.map(inc => inc.id === incidentId ? newIncident : inc));
+          setCoordStatus("IDLE");
+        });
+      });
+      return currentResources;
+    });
   };
 
   const handleInputSubmit = (e) => {
@@ -242,14 +246,14 @@ export default function ManagerDashboard() {
           <div>
             <div className="flex items-center justify-between mb-[8px]">
                <div className="flex items-center gap-2">
-                 <div className={`w-[8px] h-[8px] rounded-full bg-[#FF2D55] ${agents.triage.status !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
+                 <div className={`w-[8px] h-[8px] rounded-full bg-[#FF2D55] ${triageStatus !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
                  <span className="text-[10px] font-bold text-[#E8F4FD]">TRIAGE</span>
                </div>
-               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(agents.triage.status).bg, color: getStatusBadge(agents.triage.status).color }}>{agents.triage.status}</span>
+               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(triageStatus).bg, color: getStatusBadge(triageStatus).color }}>{triageStatus}</span>
             </div>
             <div className="text-[11px] italic text-[#7B9BB5] leading-[1.6] pl-[8px]" style={{ borderLeft: "4px solid #FF2D55" }}>
-              {agents.triage.thought}
-              {agents.triage.status !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#FF2D55] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
+              {triageThought || "Monitoring incoming channels..."}
+              {triageStatus !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#FF2D55] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
             </div>
           </div>
 
@@ -257,14 +261,14 @@ export default function ManagerDashboard() {
           <div>
             <div className="flex items-center justify-between mb-[8px]">
                <div className="flex items-center gap-2">
-                 <div className={`w-[8px] h-[8px] rounded-full bg-[#FFB300] ${agents.dispatch.status !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
+                 <div className={`w-[8px] h-[8px] rounded-full bg-[#FFB300] ${dispatchStatus !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
                  <span className="text-[10px] font-bold text-[#E8F4FD]">DISPATCH</span>
                </div>
-               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(agents.dispatch.status).bg, color: getStatusBadge(agents.dispatch.status).color }}>{agents.dispatch.status}</span>
+               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(dispatchStatus).bg, color: getStatusBadge(dispatchStatus).color }}>{dispatchStatus}</span>
             </div>
             <div className="text-[11px] italic text-[#7B9BB5] leading-[1.6] pl-[8px]" style={{ borderLeft: "4px solid #FFB300" }}>
-              {agents.dispatch.thought}
-              {agents.dispatch.status !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#FFB300] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
+              {dispatchThought || "Awaiting incident assignments..."}
+              {dispatchStatus !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#FFB300] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
             </div>
           </div>
 
@@ -272,14 +276,14 @@ export default function ManagerDashboard() {
           <div>
             <div className="flex items-center justify-between mb-[8px]">
                <div className="flex items-center gap-2">
-                 <div className={`w-[8px] h-[8px] rounded-full bg-[#00C8FF] ${agents.coordinator.status !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
+                 <div className={`w-[8px] h-[8px] rounded-full bg-[#00C8FF] ${coordStatus !== 'IDLE' ? 'animate-[blink_1s_infinite]' : ''}`}></div>
                  <span className="text-[10px] font-bold text-[#E8F4FD]">COORDINATOR</span>
                </div>
-               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(agents.coordinator.status).bg, color: getStatusBadge(agents.coordinator.status).color }}>{agents.coordinator.status}</span>
+               <span className="text-[8px] px-2 py-[2px] rounded font-[700]" style={{ background: getStatusBadge(coordStatus).bg, color: getStatusBadge(coordStatus).color }}>{coordStatus}</span>
             </div>
             <div className="text-[11px] italic text-[#7B9BB5] leading-[1.6] pl-[8px]" style={{ borderLeft: "4px solid #00C8FF" }}>
-              {agents.coordinator.thought}
-              {agents.coordinator.status !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#00C8FF] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
+              {coordThought || "Systems nominal."}
+              {coordStatus !== 'IDLE' && <span className="inline-block w-[4px] h-[12px] bg-[#00C8FF] animate-[blink_1s_infinite] ml-1 align-middle"></span>}
             </div>
           </div>
         </div>
@@ -297,7 +301,7 @@ export default function ManagerDashboard() {
                 <div key={inc.id} className="p-[8px] rounded-[6px]" style={{ background: "rgba(255,255,255,0.02)", borderLeft: `3px solid ${sevBadge.color}` }}>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-[#E8F4FD] font-bold">{inc.id}</span>
-                    <span className="text-[8px] px-[4px] py-[2px] rounded font-[700]" style={{ background: sevBadge.bg, color: sevBadge.color }}>SEV {inc.severity}</span>
+                    <span className="text-[8px] px-[4px] py-[2px] rounded font-[700]" style={{ background: sevBadge.bg, color: sevBadge.color }}>SEV {inc.severity || '?'}</span>
                   </div>
                   <div className="text-[10px] text-[#7B9BB5] mt-[4px] line-clamp-2">{inc.rawText}</div>
                   <div className="text-[8px] text-[#00C8FF] mt-[6px] font-[700]">{inc.status.toUpperCase()}</div>
@@ -344,16 +348,20 @@ export default function ManagerDashboard() {
              <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Deployed</div>
           </div>
           <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
-             <div className="text-[16px] font-[900] text-[#00E676]">3.5</div>
+             <div className="text-[16px] font-[900] text-[#00C8FF]">3.5</div>
              <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Avg ETA</div>
+          </div>
+          <div className="glass-card !p-[8px_16px] min-w-[80px] text-center">
+             <div className="text-[16px] font-[900] text-[#00E676]">0</div>
+             <div className="text-[8px] font-[700] text-[#7B9BB5] uppercase">Duplicates</div>
           </div>
         </div>
 
         {/* Input Row */}
-        <div className="flex items-center gap-[8px] max-w-[600px] mx-auto">
+        <div className="flex items-center gap-[12px] max-w-[700px] mx-auto w-full">
           <button 
             onClick={toggleMic}
-            className="w-[42px] h-[42px] rounded-full bg-[#FF2D55] flex items-center justify-center flex-shrink-0 transition-all"
+            className="w-[44px] h-[44px] rounded-full bg-[#FF2D55] flex items-center justify-center flex-shrink-0 transition-all"
             style={{ boxShadow: isListening ? "0 0 20px #FF2D5580" : "0 0 10px #FF2D5540" }}
           >
              <Mic className={`w-5 h-5 text-white ${isListening ? 'animate-[pulse_1s_infinite]' : ''}`} />
@@ -361,7 +369,7 @@ export default function ManagerDashboard() {
           
           <input 
             type="text" 
-            className="flex-1 glass-card !p-[0_16px] h-[42px] text-[#E8F4FD] placeholder-[#2A4A6B] font-mono text-[13px] outline-none focus:border-[#00C8FF]"
+            className="flex-1 min-w-0 glass-card !p-[0_16px] h-[44px] text-[#E8F4FD] placeholder-[#2A4A6B] font-mono text-[13px] outline-none focus:border-[#00C8FF]"
             placeholder="Type scenario or use mic..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
@@ -371,7 +379,7 @@ export default function ManagerDashboard() {
           <button 
             onClick={handleChaosMode}
             disabled={isChaosMode}
-            className="flex-shrink-0 bg-[rgba(26,0,16,0.88)] border border-[#FF2D55] text-[#FF2D55] px-[16px] h-[42px] rounded-[12px] font-[900] text-[12px] tracking-[1px] flex items-center gap-[8px] hover:bg-[rgba(255,45,85,0.1)] transition-colors"
+            className="flex-shrink-0 min-w-[100px] whitespace-nowrap bg-[rgba(26,0,16,0.88)] border border-[#FF2D55] text-[#FF2D55] p-[10px_20px] h-[44px] rounded-[12px] font-[900] text-[12px] tracking-[1px] flex items-center justify-center gap-[8px] hover:bg-[rgba(255,45,85,0.1)] transition-colors"
           >
              <AlertTriangle className="w-4 h-4" /> CHAOS
           </button>
