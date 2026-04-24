@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mic, MicOff, Send, Loader2, MapPin, Ambulance, Navigation } from "lucide-react";
+import { Mic, Send } from "lucide-react";
 import { startListening } from "../utils/speechRecognition";
 import { triageAgent, dispatchAgent, coordinatorAgent } from "../utils/gemini";
 import { mockResources } from "../data/mockResources";
+import KavachLogo from "../components/KavachLogo";
 
 export default function CitizenApp() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export default function CitizenApp() {
 
   // Tracking Screen State
   const [trackingData, setTrackingData] = useState(null);
-  const [dotPos, setDotPos] = useState({ x: 10, y: 10 });
+  const [countdown, setCountdown] = useState(240);
 
   // --- Report Actions ---
   const toggleListening = () => {
@@ -49,9 +50,8 @@ export default function CitizenApp() {
     }
   };
 
-  const handleSubmit = async () => {
-    const finalQuery = inputText || liveTranscript;
-    if (!finalQuery.trim()) return;
+  const processEmergency = async (text) => {
+    if (!text.trim()) return;
 
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -60,106 +60,127 @@ export default function CitizenApp() {
 
     setScreen("processing");
     
-    // Step 1: Triage
+    // STEP 1: Triage
     setActiveAgent("triage");
-    const incidentData = await triageAgent(finalQuery, (text) => setTriageThought(text));
-    
-    // Step 2: Dispatch
-    setActiveAgent("dispatch");
-    const availableResources = {
-      ambulances: mockResources.ambulances.filter(r => r.status === "available"),
-      fireTrucks: mockResources.fireTrucks.filter(r => r.status === "available"),
-      police: mockResources.police.filter(r => r.status === "available"),
-    };
-    const dispatchData = await dispatchAgent(incidentData, availableResources, (text) => setDispatchThought(text));
-    
-    // Step 3: Coordinator
-    setActiveAgent("coordinator");
-    const coordData = await coordinatorAgent(incidentData, dispatchData, (text) => setCoordThought(text));
-
-    // Finish
-    setActiveAgent("done");
-    setTrackingData({
-      incidentId: "INC-" + Math.floor(100 + Math.random() * 900),
-      eta: dispatchData.estimatedETA || 4,
-      assignedResources: dispatchData.assignedResources || ["AMB-01"],
+    setTriageThought("");
+    const triageResult = await triageAgent(text, (thought) => {
+      setTriageThought(thought);
     });
-    setScreen("tracking");
+    
+    // STEP 2: Dispatch
+    setActiveAgent("dispatch");
+    setDispatchThought("");
+    const available = {
+      ambulances: mockResources.ambulances.filter(r => r.status === "available"),
+      fireTrucks: mockResources.fireTrucks.filter(r => r.status === "available")
+    };
+    const dispatchResult = await dispatchAgent(triageResult, available, (thought) => {
+      setDispatchThought(thought);
+    });
+
+    // STEP 3: Coordinator
+    setActiveAgent("coordinator");
+    setCoordThought("");
+    const coordResult = await coordinatorAgent(triageResult, dispatchResult, (thought) => {
+      setCoordThought(thought);
+    });
+
+    // Done
+    setActiveAgent("done");
+    setTrackingData({ triageResult, dispatchResult, coordResult });
+    setTimeout(() => setScreen("tracking"), 1000);
   };
 
-  // --- Map Animation ---
+  const handleSubmit = () => {
+    const finalQuery = inputText || liveTranscript;
+    processEmergency(finalQuery);
+  };
+
+  // --- Tracking Timer ---
   useEffect(() => {
     if (screen === "tracking") {
-      const interval = setInterval(() => {
-        setDotPos(prev => ({
-          x: prev.x < 90 ? prev.x + 2 : 90,
-          y: prev.y < 90 ? prev.y + 1 : 90
-        }));
-      }, 500);
-      return () => clearInterval(interval);
+      setCountdown(240);
+      const timer = setInterval(() => {
+        setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+      return () => clearInterval(timer);
     }
   }, [screen]);
+  
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // --- Render ---
   return (
-    <div className="min-h-screen bg-[#05080F] text-white flex flex-col items-center w-full relative overflow-hidden font-sans">
+    <div className="min-h-screen w-full relative overflow-hidden font-sans text-[#E8F4FD] flex flex-col items-center justify-center">
       
-      {/* HEADER */}
-      <div className="w-full max-w-[420px] mx-auto p-6 text-center z-10">
-        <h1 className="text-3xl font-black tracking-widest text-cyan-400">KAVACH</h1>
-        <p className="text-xs text-gray-400 uppercase tracking-widest mt-1">Emergency Response System</p>
-      </div>
-
       {/* ===================== SCREEN 1: REPORT ===================== */}
       {screen === "report" && (
-        <div className="flex-1 w-full max-w-[420px] mx-auto flex flex-col items-center justify-center p-6 space-y-8 z-10">
+        <div className="w-full max-w-[420px] mx-auto flex flex-col items-center justify-center p-[40px_20px] gap-[20px] z-10">
           
-          <div className="flex flex-col items-center">
-            <button
-              onClick={toggleListening}
-              className={`w-[100px] h-[100px] rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl ${
-                isListening 
-                  ? "bg-red-500 animate-pulse shadow-red-500/50 scale-110" 
-                  : "bg-red-600/20 hover:bg-red-600/40 border border-red-500/30"
-              }`}
-            >
-              {isListening ? <Mic className="w-12 h-12 text-white" /> : <MicOff className="w-12 h-12 text-red-400" />}
-            </button>
-            <h2 className="mt-8 text-xl font-bold tracking-wide">TAP & SPEAK YOUR EMERGENCY</h2>
-            <p className="text-gray-500 text-sm mt-2">Hindi ya English mein boliye</p>
+          <div className="text-center">
+            <KavachLogo size={28} subtitle="EMERGENCY RESPONSE SYSTEM" />
+            <p className="text-[#7B9BB5] text-[13px] mt-2">Koi bhi emergency. Bas ek tap.</p>
           </div>
+          
+          <div className="flex flex-col items-center w-full relative">
+            <div className="relative flex items-center justify-center mb-[20px] w-[150px] h-[150px]">
+              {/* Mic Button Background Pulses */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-0 left-0 w-full h-full rounded-full border border-[#FF2D55] animate-[pulse-ring_1.5s_infinite]"></div>
+                <div className="absolute top-0 left-0 w-full h-full rounded-full border border-[#FF2D55] animate-[pulse-ring_2s_infinite] delay-[500ms]"></div>
+                <div className="absolute top-0 left-0 w-full h-full rounded-full border border-[#FF2D55] animate-[pulse-ring_2.5s_infinite] delay-[1000ms]"></div>
+              </div>
 
-          {(liveTranscript || inputText) && (
-            <div className="w-full bg-white/5 p-4 rounded-xl border border-white/10 min-h-[60px] text-center italic text-gray-300">
-              {inputText} {liveTranscript}
+              <button
+                onClick={toggleListening}
+                className="relative z-10 w-[150px] h-[150px] rounded-full flex items-center justify-center transition-all duration-300"
+                style={{
+                  background: "radial-gradient(circle at 30% 30%, #FF4D6D, #FF2D55, #CC0033)",
+                  boxShadow: "0 0 60px #FF2D5550"
+                }}
+              >
+                <Mic className="w-6 h-6 text-white" />
+              </button>
             </div>
-          )}
+            
+            <h2 className="text-[18px] font-[800] text-[#E8F4FD] tracking-[1px] text-center">TAP & SPEAK YOUR EMERGENCY</h2>
+            <p className="text-[#7B9BB5] text-[13px] text-center mt-1">Hindi ya English mein boliye</p>
 
-          <div className="w-full flex items-center gap-4 text-gray-600">
-            <div className="flex-1 h-px bg-white/10"></div>
-            <span className="text-xs font-bold tracking-widest">OR</span>
-            <div className="flex-1 h-px bg-white/10"></div>
+            {isListening && liveTranscript && (
+              <div className="text-[#00C8FF] italic text-center mt-[10px] text-[14px] max-w-full px-4">
+                "{liveTranscript}"
+              </div>
+            )}
           </div>
 
-          <div className="w-full space-y-4">
+          <div className="w-full flex items-center gap-4">
+            <div className="flex-1 h-px bg-[#2A4A6B]"></div>
+            <span className="text-[12px] font-[800] text-[#2A4A6B]">OR</span>
+            <div className="flex-1 h-px bg-[#2A4A6B]"></div>
+          </div>
+
+          <div className="w-full space-y-[10px]">
             <textarea
-              className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
-              rows={3}
+              className="w-full glass-card text-[#E8F4FD] text-[14px] placeholder-[#2A4A6B] focus:outline-none focus:border-[#00C8FF] focus:shadow-[0_0_20px_#00C8FF33] resize-none h-[80px]"
               placeholder="Type your emergency here..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
             
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-[10px] justify-center">
               <button 
                 onClick={() => setLanguage("hi-IN")}
-                className={`flex-1 min-h-[48px] rounded-full text-sm font-medium transition-colors ${language === "hi-IN" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
+                className={`flex-1 h-[40px] rounded-full text-[14px] font-[500] transition-colors ${language === "hi-IN" ? "bg-[#00C8FF20] border border-[#00C8FF] text-[#00C8FF]" : "bg-transparent border border-[rgba(0,200,255,0.12)] text-[#7B9BB5]"}`}
               >
                 हिंदी
               </button>
               <button 
                 onClick={() => setLanguage("en-US")}
-                className={`flex-1 min-h-[48px] rounded-full text-sm font-medium transition-colors ${language === "en-US" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}
+                className={`flex-1 h-[40px] rounded-full text-[14px] font-[500] transition-colors ${language === "en-US" ? "bg-[#00C8FF20] border border-[#00C8FF] text-[#00C8FF]" : "bg-transparent border border-[rgba(0,200,255,0.12)] text-[#7B9BB5]"}`}
               >
                 English
               </button>
@@ -168,143 +189,186 @@ export default function CitizenApp() {
 
           <button 
             onClick={handleSubmit}
-            className="w-full min-h-[48px] bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 rounded-xl font-bold text-lg tracking-wider transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2"
+            className="w-full h-[54px] rounded-[12px] font-[800] text-[16px] text-white tracking-[1px] flex justify-center items-center gap-[10px] hover:brightness-110 transition-all"
+            style={{ background: "linear-gradient(135deg, #FF2D55, #CC0033)", boxShadow: "0 4px 24px #FF2D5540" }}
           >
-            REPORT EMERGENCY <Send className="w-5 h-5" />
+            REPORT EMERGENCY
+          </button>
+
+          <button 
+            onClick={() => navigate('/manager')}
+            className="absolute bottom-[20px] right-[20px] text-[#2A4A6B] text-[12px] font-[800] hover:text-[#00C8FF] transition-colors z-50"
+          >
+            Manager View &rarr;
           </button>
         </div>
       )}
 
       {/* ===================== SCREEN 2: PROCESSING ===================== */}
       {screen === "processing" && (
-        <div className="flex-1 w-full max-w-[420px] mx-auto p-6 flex flex-col justify-center space-y-4 z-10">
+        <div className="w-full max-w-[500px] flex flex-col justify-center p-[40px_20px] z-10 w-full">
           
-          {/* Triage Agent */}
-          <div className={`p-4 rounded-xl border transition-all duration-500 ${activeAgent === "triage" ? "bg-red-500/10 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]" : "bg-white/5 border-white/10 opacity-70"}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full bg-red-500 ${activeAgent === "triage" ? "animate-pulse" : ""}`}></div>
-                <h3 className="font-bold text-red-400">Agent 1: Triage</h3>
-              </div>
-              <span className="text-xs px-2 py-1 bg-white/10 rounded-full">{triageThought ? "Done" : (activeAgent === "triage" ? "Processing" : "Waiting")}</span>
-            </div>
-            <p className="text-sm text-gray-300 italic min-h-[40px] break-words">
-              {triageThought || (activeAgent === "triage" ? "Analyzing emergency..." : "...")}
-              {activeAgent === "triage" && <span className="inline-block w-1 h-4 ml-1 bg-red-400 animate-pulse"></span>}
-            </p>
+          <div className="mb-[30px] flex justify-center">
+            <KavachLogo size={20} />
           </div>
 
-          {/* Dispatch Agent */}
-          <div className={`p-4 rounded-xl border transition-all duration-500 ${activeAgent === "dispatch" ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.2)]" : "bg-white/5 border-white/10 opacity-70"}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full bg-amber-500 ${activeAgent === "dispatch" ? "animate-pulse" : ""}`}></div>
-                <h3 className="font-bold text-amber-400">Agent 2: Dispatch</h3>
-              </div>
-              <span className="text-xs px-2 py-1 bg-white/10 rounded-full">{(activeAgent === "coordinator" || activeAgent === "done") ? "Done" : (activeAgent === "dispatch" ? "Processing" : "Waiting")}</span>
-            </div>
-            <p className="text-sm text-gray-300 italic min-h-[40px] break-words">
-              {dispatchThought || (activeAgent === "dispatch" ? "Finding nearest resources..." : "...")}
-              {activeAgent === "dispatch" && <span className="inline-block w-1 h-4 ml-1 bg-amber-400 animate-pulse"></span>}
-            </p>
-          </div>
-
-          {/* Coordinator Agent */}
-          <div className={`p-4 rounded-xl border transition-all duration-500 ${activeAgent === "coordinator" ? "bg-teal-500/10 border-teal-500/50 shadow-[0_0_20px_rgba(20,184,166,0.2)]" : "bg-white/5 border-white/10 opacity-70"}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full bg-teal-500 ${activeAgent === "coordinator" ? "animate-pulse" : ""}`}></div>
-                <h3 className="font-bold text-teal-400">Agent 3: Coordinator</h3>
-              </div>
-              <span className="text-xs px-2 py-1 bg-white/10 rounded-full">{activeAgent === "done" ? "Done" : (activeAgent === "coordinator" ? "Processing" : "Waiting")}</span>
-            </div>
-            <p className="text-sm text-gray-300 italic min-h-[40px] break-words">
-              {coordThought || (activeAgent === "coordinator" ? "Confirming routes..." : "...")}
-              {activeAgent === "coordinator" && <span className="inline-block w-1 h-4 ml-1 bg-teal-400 animate-pulse"></span>}
-            </p>
-          </div>
+          <h2 className="text-[#00C8FF] text-[18px] font-[700] text-center mb-[30px] animate-[pulse_1.5s_infinite]">
+            AI Agents Responding...
+          </h2>
           
-          <div className="flex justify-center mt-8">
-            <Loader2 className="w-8 h-8 text-cyan-500 animate-spin" />
+          <div className="flex flex-col gap-[12px]">
+            {/* Triage Agent */}
+            <div className="glass-card animate-[fadeIn_0.5s_ease-out]" style={{ borderLeft: "4px solid #FF2D55" }}>
+              <div className="flex items-center justify-between mb-[8px]">
+                <div className="flex items-center gap-[8px]">
+                  <div className={`w-[8px] h-[8px] rounded-full bg-[#FF2D55] ${activeAgent === "triage" ? "animate-[blink_1s_infinite]" : ""}`}></div>
+                  <h3 className="font-[700] text-[12px] tracking-[1px] text-[#E8F4FD]">TRIAGE AGENT</h3>
+                </div>
+                <span className="text-[10px] px-[8px] py-[4px] rounded font-[700]" style={{
+                  background: triageThought ? "#ffffff10" : (activeAgent === "triage" ? "#FF2D5520" : "#ffffff10"),
+                  color: triageThought ? "#7B9BB5" : (activeAgent === "triage" ? "#FF2D55" : "#7B9BB5")
+                }}>
+                  {triageThought ? "IDLE" : (activeAgent === "triage" ? "ANALYZING" : "IDLE")}
+                </span>
+              </div>
+              <p className="text-[13px] text-[#7B9BB5] italic min-h-[40px] leading-[1.6]">
+                {triageThought || (activeAgent === "triage" ? "Analyzing emergency..." : "Waiting...")}
+                {activeAgent === "triage" && <span className="inline-block w-[2px] h-[14px] ml-[4px] bg-[#00C8FF] align-middle animate-[blink_1s_infinite]"></span>}
+              </p>
+            </div>
+
+            {/* Dispatch Agent */}
+            <div className="glass-card animate-[fadeIn_0.5s_ease-out] delay-[200ms] fill-mode-both" style={{ borderLeft: "4px solid #FFB300" }}>
+              <div className="flex items-center justify-between mb-[8px]">
+                <div className="flex items-center gap-[8px]">
+                  <div className={`w-[8px] h-[8px] rounded-full bg-[#FFB300] ${activeAgent === "dispatch" ? "animate-[blink_1s_infinite]" : ""}`}></div>
+                  <h3 className="font-[700] text-[12px] tracking-[1px] text-[#E8F4FD]">DISPATCH AGENT</h3>
+                </div>
+                <span className="text-[10px] px-[8px] py-[4px] rounded font-[700]" style={{
+                  background: dispatchThought ? "#ffffff10" : (activeAgent === "dispatch" ? "#FFB30020" : "#ffffff10"),
+                  color: dispatchThought ? "#7B9BB5" : (activeAgent === "dispatch" ? "#FFB300" : "#7B9BB5")
+                }}>
+                  {dispatchThought ? "IDLE" : (activeAgent === "dispatch" ? "ROUTING" : "IDLE")}
+                </span>
+              </div>
+              <p className="text-[13px] text-[#7B9BB5] italic min-h-[40px] leading-[1.6]">
+                {dispatchThought || (activeAgent === "dispatch" ? "Finding nearest resources..." : "Waiting...")}
+                {activeAgent === "dispatch" && <span className="inline-block w-[2px] h-[14px] ml-[4px] bg-[#00C8FF] align-middle animate-[blink_1s_infinite]"></span>}
+              </p>
+            </div>
+
+            {/* Coordinator Agent */}
+            <div className="glass-card animate-[fadeIn_0.5s_ease-out] delay-[400ms] fill-mode-both" style={{ borderLeft: "4px solid #00C8FF" }}>
+              <div className="flex items-center justify-between mb-[8px]">
+                <div className="flex items-center gap-[8px]">
+                  <div className={`w-[8px] h-[8px] rounded-full bg-[#00C8FF] ${activeAgent === "coordinator" ? "animate-[blink_1s_infinite]" : ""}`}></div>
+                  <h3 className="font-[700] text-[12px] tracking-[1px] text-[#E8F4FD]">COORDINATOR AGENT</h3>
+                </div>
+                <span className="text-[10px] px-[8px] py-[4px] rounded font-[700]" style={{
+                  background: coordThought ? "#ffffff10" : (activeAgent === "coordinator" ? "#00C8FF20" : "#ffffff10"),
+                  color: coordThought ? "#7B9BB5" : (activeAgent === "coordinator" ? "#00C8FF" : "#7B9BB5")
+                }}>
+                  {coordThought ? "IDLE" : (activeAgent === "coordinator" ? "CONFIRMED" : "IDLE")}
+                </span>
+              </div>
+              <p className="text-[13px] text-[#7B9BB5] italic min-h-[40px] leading-[1.6]">
+                {coordThought || (activeAgent === "coordinator" ? "Confirming routes..." : "Waiting...")}
+                {activeAgent === "coordinator" && <span className="inline-block w-[2px] h-[14px] ml-[4px] bg-[#00C8FF] align-middle animate-[blink_1s_infinite]"></span>}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* ===================== SCREEN 3: TRACKING ===================== */}
       {screen === "tracking" && trackingData && (
-        <div className="flex-1 w-full max-w-[420px] mx-auto flex flex-col p-6 z-10">
+        <div className="w-full max-w-[500px] flex flex-col p-[20px] z-10 relative">
           
-          <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-4 text-center mb-8 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-            <h2 className="text-emerald-400 font-bold tracking-widest text-sm mb-2">HELP IS ON THE WAY</h2>
-            <div className="text-6xl font-black text-white">{trackingData.eta} <span className="text-2xl text-emerald-400">MIN</span></div>
+          <div className="mb-[20px] flex justify-center">
+            <KavachLogo size={20} />
           </div>
 
-          <div className="bg-white/5 rounded-xl border border-white/10 p-4 mb-8">
-            <h3 className="text-gray-400 text-xs tracking-wider mb-4 uppercase">Dispatched Units</h3>
-            <div className="space-y-3">
-              {trackingData.assignedResources.map((resId, idx) => (
-                <div key={idx} className="flex items-center gap-4 bg-black/30 p-3 rounded-lg border border-white/5">
-                  <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
-                    <Ambulance className="w-5 h-5 text-cyan-400" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold">{resId}</p>
-                    <p className="text-xs text-cyan-400 flex items-center gap-1"><Navigation className="w-3 h-3"/> En route</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="glass-card flex flex-col items-center justify-center p-[20px] mb-[20px]">
+            <h2 className="text-[#00E676] font-[900] text-[18px] mb-[8px]">✓ HELP IS ON THE WAY</h2>
+            <div className="text-[12px] text-[#7B9BB5] tracking-[2px]">ID: {trackingData.dispatchResult?.incidentId || "INC-" + Math.floor(100+Math.random()*900)}</div>
           </div>
 
-          <div className="relative w-full h-48 bg-[#0a101d] rounded-xl border border-white/10 overflow-hidden mb-6 flex items-center justify-center">
-            {/* Simple CSS Grid Background representing city blocks */}
-            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)", backgroundSize: "20px 20px" }}></div>
+          {/* LIVE TRACKING MAP */}
+          <div 
+            className="w-full h-[260px] rounded-[16px] relative overflow-hidden mb-[20px]"
+            style={{ background: "#020B18", border: "1px solid rgba(0,200,255,0.15)" }}
+          >
+            {/* CSS Grid Background inside map */}
+            <div 
+              className="absolute inset-0 z-0 pointer-events-none opacity-40"
+              style={{ 
+                backgroundImage: "linear-gradient(rgba(0,200,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,200,255,0.05) 1px, transparent 1px), linear-gradient(rgba(0,200,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,200,255,0.02) 1px, transparent 1px)", 
+                backgroundSize: "50px 50px, 50px 50px, 10px 10px, 10px 10px" 
+              }}
+            ></div>
+
+            <div className="absolute top-[8px] left-[8px] text-[#00C8FF] text-[10px] tracking-[2px] font-[700] z-20">LIVE TRACKING</div>
             
-            {/* User Location */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-              <div className="relative">
-                <MapPin className="w-8 h-8 text-red-500 -mt-8" />
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-red-500/40 rounded-full animate-ping"></div>
+            <div className="absolute top-[8px] right-[10px] flex flex-col items-end z-20">
+              <span className="text-[8px] text-[#7B9BB5] uppercase font-[700] mb-[2px]">ETA</span>
+              <div className="text-[#00C8FF] text-[18px] font-mono font-[700] leading-none">
+                {formatTime(countdown)}
               </div>
             </div>
 
-            {/* Moving Resource Dot */}
+            {/* Dashed Line */}
+            <svg className="absolute inset-0 w-full h-full z-10" pointerEvents="none">
+               <line x1="8%" y1="45%" x2="62%" y2="45%" stroke="rgba(0,230,118,0.4)" strokeWidth="2" strokeDasharray="4 4" />
+            </svg>
+
+            {/* Incident Location (Red Dot) */}
+            <div className="absolute z-20 flex flex-col items-center" style={{ left: '62%', top: '45%', transform: 'translate(-50%, -50%)' }}>
+              <div className="w-[12px] h-[12px] bg-[#FF2D55] rounded-full shadow-[0_0_15px_#FF2D55] animate-[incPulse_1.5s_infinite]"></div>
+              <div className="text-[#ffffff] text-[9px] mt-[6px] font-[700] whitespace-nowrap">📍 Your Location</div>
+            </div>
+
+            {/* Moving Ambulance (Green Square) */}
             <div 
-              className="absolute w-4 h-4 bg-cyan-400 rounded-full shadow-[0_0_15px_#22d3ee] transition-all duration-500"
-              style={{ left: `${dotPos.x}%`, top: `${dotPos.y}%` }}
-            ></div>
-          </div>
-
-          <div className="text-center mb-8">
-            <p className="text-gray-500 text-sm">Your emergency ID</p>
-            <p className="font-mono font-bold text-gray-300">{trackingData.incidentId}</p>
-          </div>
-
-          <div className="mt-auto">
-            <button 
-              onClick={() => {
-                setScreen("report");
-                setInputText("");
-                setLiveTranscript("");
-                setTriageThought("");
-                setDispatchThought("");
-                setCoordThought("");
-              }}
-              className="w-full min-h-[48px] border border-white/20 hover:bg-white/5 rounded-xl font-bold tracking-wider transition-colors"
+              className="absolute z-30 flex flex-col items-center animate-[vehicleMove_8s_ease-in-out_forwards]"
+              style={{ top: '45%', transform: 'translate(-50%, -50%)' }}
             >
-              REPORT ANOTHER EMERGENCY
-            </button>
+              <div className="w-[12px] h-[12px] bg-[#00E676] rounded-[2px] shadow-[0_0_10px_#00E676]"></div>
+              <div className="text-[#00E676] text-[9px] mt-[6px] font-[700] whitespace-nowrap">🚑 Ambulance</div>
+            </div>
           </div>
+
+          <div className="glass-card mb-[20px]">
+            <h3 className="text-[10px] text-[#7B9BB5] tracking-[2px] font-[700] mb-[10px] uppercase">Dispatched Resources</h3>
+            <div className="space-y-[10px]">
+              {trackingData.dispatchResult?.assignedResources?.map((resId, idx) => (
+                <div key={idx} className="flex items-center gap-[12px]">
+                  <div className="w-[8px] h-[8px] rounded-[2px] bg-[#00E676] shadow-[0_0_5px_#00E676]"></div>
+                  <div className="flex-1 font-mono text-[14px] font-[700]">{resId}</div>
+                  <div className="text-[10px] text-[#00E676] bg-[#002D10] px-[8px] py-[4px] rounded font-[700]">EN ROUTE</div>
+                </div>
+              ))}
+              {(!trackingData.dispatchResult?.assignedResources || trackingData.dispatchResult.assignedResources.length === 0) && (
+                 <div className="flex items-center gap-[12px]">
+                   <div className="w-[8px] h-[8px] rounded-[2px] bg-[#00E676] shadow-[0_0_5px_#00E676]"></div>
+                   <div className="flex-1 font-mono text-[14px] font-[700]">AMB-01</div>
+                   <div className="text-[10px] text-[#00E676] bg-[#002D10] px-[8px] py-[4px] rounded font-[700]">EN ROUTE</div>
+                 </div>
+              )}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => {
+              setScreen("report");
+              setInputText("");
+              setLiveTranscript("");
+            }}
+            className="w-full h-[48px] border border-[#FF2D55] text-[#FF2D55] bg-transparent rounded-[12px] font-[700] text-[14px] tracking-[1px] hover:bg-[rgba(255,45,85,0.1)] transition-colors mt-auto"
+          >
+            REPORT ANOTHER EMERGENCY
+          </button>
         </div>
       )}
-
-      {/* FLOATING MANAGER BUTTON */}
-      <button 
-        onClick={() => navigate('/manager')}
-        className="absolute bottom-4 right-4 bg-white/10 px-4 py-2 rounded-lg text-xs font-bold text-gray-400 hover:text-white backdrop-blur-md border border-white/20 transition-colors z-50 min-h-[48px] flex items-center justify-center"
-      >
-        Manager View &rarr;
-      </button>
 
     </div>
   );
